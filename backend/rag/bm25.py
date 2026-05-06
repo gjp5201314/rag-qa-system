@@ -33,6 +33,28 @@ class BM25:
         for term, df in self.doc_freqs.items():
             self.idf[term] = math.log((self.num_docs - df + 0.5) / (df + 0.5) + 1)
 
+    def add_documents(self, documents: List[str]):
+        if not documents:
+            return
+            
+        for doc in documents:
+            self.corpus.append(doc)
+            self.num_docs += 1
+            
+            doc = doc.lower()
+            terms = self._tokenize(doc)
+            self.doc_lengths.append(len(terms))
+            
+            unique_terms = set(terms)
+            for term in unique_terms:
+                self.doc_freqs[term] = self.doc_freqs.get(term, 0) + 1
+
+        total_length = sum(self.doc_lengths)
+        self.avg_doc_length = total_length / self.num_docs if self.num_docs > 0 else 0
+
+        for term, df in self.doc_freqs.items():
+            self.idf[term] = math.log((self.num_docs - df + 0.5) / (df + 0.5) + 1)
+
     def _tokenize(self, text: str) -> List[str]:
         text = text.lower()
         tokens = re.findall(r'\w+', text)
@@ -75,9 +97,22 @@ class HybridSearch:
         self.alpha = alpha
         self.bm25 = BM25()
         self.vector_results_cache = {}
+        self.doc_id_to_index = {}
+        self.initialized = False
 
-    def index_documents(self, documents: List[str]):
-        self.bm25.index(documents)
+    def index_documents(self, documents: List[str], doc_ids: List[str] = None):
+        if not self.initialized:
+            self.bm25.index(documents)
+            self.initialized = True
+            if doc_ids:
+                self.doc_id_to_index = {doc_id: idx for idx, doc_id in enumerate(doc_ids)}
+        else:
+            base_idx = len(self.bm25.corpus)
+            self.bm25.add_documents(documents)
+            if doc_ids:
+                for i, doc_id in enumerate(doc_ids):
+                    self.doc_id_to_index[doc_id] = base_idx + i
+            
         self.vector_results_cache = {}
 
     def search(self, query: str, vector_results: List[Dict[str, Any]],
@@ -88,19 +123,25 @@ class HybridSearch:
         bm25_normalized = [s / max_bm25 for s in bm25_scores]
 
         for i, result in enumerate(vector_results):
-            original_idx = int(result.get('id', i))
+            result_id = result.get('id', '')
             vector_score = 1 - result.get('distance', 1.0)
             vector_score = max(0, min(1, vector_score))
 
-            if original_idx < len(bm25_normalized):
-                bm25_norm = bm25_normalized[original_idx]
-                combined_score = self.alpha * vector_score + (1 - self.alpha) * bm25_norm
+            if result_id in self.doc_id_to_index:
+                idx = self.doc_id_to_index[result_id]
+                if idx < len(bm25_normalized):
+                    bm25_norm = bm25_normalized[idx]
+                    combined_score = self.alpha * vector_score + (1 - self.alpha) * bm25_norm
+                else:
+                    combined_score = vector_score
             else:
-                combined_score = vector_score
+                idx_score = i / max(len(vector_results), 1)
+                bm25_norm = bm25_normalized[i] if i < len(bm25_normalized) else idx_score
+                combined_score = self.alpha * vector_score + (1 - self.alpha) * bm25_norm
 
             result['combined_score'] = combined_score
             result['vector_score'] = vector_score
-            result['bm25_score'] = bm25_normalized[original_idx] if original_idx < len(bm25_normalized) else 0
+            result['bm25_score'] = bm25_norm
 
         vector_results.sort(key=lambda x: x.get('combined_score', 0), reverse=True)
         return vector_results[:top_k]

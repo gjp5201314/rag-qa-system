@@ -1,12 +1,46 @@
-import { createContext, useContext, useState, useCallback } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 
 const AppContext = createContext()
 
+const STORAGE_KEY = 'rag_app_state'
+
+function loadFromStorage() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (saved) {
+      return JSON.parse(saved)
+    }
+  } catch (e) {
+    console.error('Failed to load from storage:', e)
+  }
+  return null
+}
+
+function saveToStorage(data) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+  } catch (e) {
+    console.error('Failed to save to storage:', e)
+  }
+}
+
 export function AppProvider({ children }) {
-  const [currentKB, setCurrentKB] = useState(null)
-  const [currentSession, setCurrentSession] = useState(null)
-  const [sessions, setSessions] = useState([])
-  const [knowledgeBases, setKnowledgeBases] = useState([])
+  const savedState = loadFromStorage()
+  const [currentKB, setCurrentKB] = useState(savedState?.currentKB || null)
+  const [currentSession, setCurrentSession] = useState(savedState?.currentSession || null)
+  const [sessions, setSessions] = useState(savedState?.sessions || [])
+  const [knowledgeBases, setKnowledgeBases] = useState(savedState?.knowledgeBases || [])
+  const [chatMessagesMap, setChatMessagesMap] = useState(savedState?.chatMessagesMap || {})
+
+  useEffect(() => {
+    saveToStorage({
+      currentKB,
+      currentSession,
+      sessions,
+      knowledgeBases,
+      chatMessagesMap
+    })
+  }, [currentKB, currentSession, sessions, knowledgeBases, chatMessagesMap])
 
   const selectKB = useCallback((kb) => {
     setCurrentKB(kb)
@@ -40,6 +74,24 @@ export function AppProvider({ children }) {
     }
   }, [currentKB])
 
+  const setChatMessages = useCallback((sessionId, messages) => {
+    setChatMessagesMap(prev => ({
+      ...prev,
+      [sessionId]: messages
+    }))
+  }, [])
+
+  const addChatMessage = useCallback((sessionId, message) => {
+    setChatMessagesMap(prev => ({
+      ...prev,
+      [sessionId]: [...(prev[sessionId] || []), message]
+    }))
+  }, [])
+
+  const getChatMessages = useCallback((sessionId) => {
+    return chatMessagesMap[sessionId] || []
+  }, [chatMessagesMap])
+
   return (
     <AppContext.Provider value={{
       currentKB,
@@ -52,7 +104,11 @@ export function AppProvider({ children }) {
       knowledgeBases,
       addKnowledgeBase,
       updateKnowledgeBases,
-      removeKnowledgeBase
+      removeKnowledgeBase,
+      chatMessagesMap,
+      setChatMessages,
+      addChatMessage,
+      getChatMessages
     }}>
       {children}
     </AppContext.Provider>

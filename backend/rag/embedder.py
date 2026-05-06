@@ -1,8 +1,11 @@
 from typing import List, Dict, Any, Optional
+import os
 import numpy as np
 
 from utils.config import Config
 from utils.logger import logger
+
+os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
 
 class Embedder:
     def __init__(self, model_name: Optional[str] = None):
@@ -15,8 +18,14 @@ class Embedder:
             try:
                 from transformers import AutoModel, AutoTokenizer
                 logger.info(f"Loading BGE model: {self.model_name}")
-                self._tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-                self._model = AutoModel.from_pretrained(self.model_name)
+                self._tokenizer = AutoTokenizer.from_pretrained(
+                    self.model_name,
+                    trust_remote_code=True
+                )
+                self._model = AutoModel.from_pretrained(
+                    self.model_name,
+                    trust_remote_code=True
+                )
                 self._model.eval()
                 logger.info("BGE model loaded successfully")
             except Exception as e:

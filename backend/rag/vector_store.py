@@ -45,9 +45,18 @@ class VectorStore:
             self.get_or_create_collection()
 
         try:
+            processed_embeddings = []
+            for emb in embeddings:
+                if isinstance(emb, np.ndarray):
+                    processed_embeddings.append(emb.tolist())
+                elif isinstance(emb, list):
+                    processed_embeddings.append(emb)
+                else:
+                    processed_embeddings.append(emb)
+
             self.collection.add(
                 ids=ids,
-                embeddings=embeddings.tolist() if isinstance(embeddings[0], np.ndarray) else embeddings,
+                embeddings=processed_embeddings,
                 documents=documents,
                 metadatas=metadatas
             )

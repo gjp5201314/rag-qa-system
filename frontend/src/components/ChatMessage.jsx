@@ -10,14 +10,24 @@ export default function ChatMessage({ message, isLoading = false }) {
 
   const sources = message.sources || (typeof message.sources_json === 'string' ? JSON.parse(message.sources_json || '[]') : [])
 
+  const getFileName = (path) => {
+    if (!path) return '未知来源'
+    const parts = path.split(/[/\\]/)
+    const fileName = parts[parts.length - 1]
+    const decoded = decodeURIComponent(fileName)
+    return decoded
+  }
+
+  const isUser = message.role === 'user'
+
   return (
-    <div className="message">
+    <div className={`message ${isUser ? 'message-user' : 'message-assistant'}`}>
       <div className={`message-avatar ${message.role}`}>
-        {message.role === 'user' ? '👤' : '🤖'}
+        {isUser ? '👤' : '🤖'}
       </div>
       <div className="message-content">
         <div className="message-role">
-          {message.role === 'user' ? '你' : 'RAG 助手'}
+          {isUser ? '你' : 'RAG 助手'}
           <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--text-muted)' }}>
             {formatTime(message.created_at)}
           </span>
@@ -35,7 +45,7 @@ export default function ChatMessage({ message, isLoading = false }) {
           )}
         </div>
 
-        {message.role === 'assistant' && sources.length > 0 && (
+        {!isUser && sources.length > 0 && (
           <div style={{ marginTop: 16 }}>
             <button
               onClick={() => setShowSources(!showSources)}
@@ -62,8 +72,8 @@ export default function ChatMessage({ message, isLoading = false }) {
                 {sources.map((source, idx) => (
                   <div key={idx} className="source-item">
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <span style={{ fontWeight: 500 }}>{source.source || '未知来源'}</span>
-                      <span className="source-score">{source.score}</span>
+                      <span style={{ fontWeight: 500 }}>{getFileName(source.source)}</span>
+                      <span className="source-score">{(source.score * 100).toFixed(1)}%</span>
                     </div>
                     <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{source.content}...</p>
                   </div>

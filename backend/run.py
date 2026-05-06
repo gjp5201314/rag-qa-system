@@ -21,7 +21,8 @@ def main():
         app.run(
             host=Config.HOST,
             port=Config.PORT,
-            debug=Config.DEBUG
+            debug=Config.DEBUG,
+            use_reloader=False
         )
     else:
         logger.info("Starting with Waitress production server...")

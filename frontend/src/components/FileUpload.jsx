@@ -3,6 +3,7 @@ import { documentAPI } from '../services/api'
 
 export default function FileUpload({ kbId, onUploadComplete, onError }) {
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
   const [dragover, setDragover] = useState(false)
   const fileInputRef = useRef(null)
 
@@ -25,6 +26,10 @@ export default function FileUpload({ kbId, onUploadComplete, onError }) {
 
   const uploadFiles = async (files) => {
     setUploading(true)
+    setUploadProgress(0)
+
+    let totalSize = files.reduce((sum, f) => sum + f.size, 0)
+    let uploadedSize = 0
 
     for (const file of files) {
       const ext = file.name.split('.').pop().toLowerCase()
@@ -38,22 +43,46 @@ export default function FileUpload({ kbId, onUploadComplete, onError }) {
         formData.append('file', file)
         formData.append('knowledge_base_id', kbId)
 
-        const response = await documentAPI.upload(formData)
+        const response = await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest()
+          xhr.open('POST', '/api/documents/upload')
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+              const fileProgress = (e.loaded / e.total) * 100
+              const overallProgress = ((uploadedSize + (e.loaded / files.length)) / totalSize) * 100
+              setUploadProgress(Math.round(overallProgress))
+            }
+          }
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve({ data: JSON.parse(xhr.responseText) })
+            } else {
+              reject(new Error(xhr.statusText))
+            }
+          }
+          xhr.onerror = () => reject(new Error('Network error'))
+          xhr.send(formData)
+        })
 
         if (response.data.error) {
           onError?.(response.data.error)
         } else {
           onUploadComplete?.(response.data)
         }
+        uploadedSize += file.size
       } catch (error) {
         onError?.(`上传失败: ${file.name}`)
       }
     }
 
-    setUploading(false)
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
+    setUploadProgress(100)
+    setTimeout(() => {
+      setUploading(false)
+      setUploadProgress(0)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }, 500)
   }
 
   const handleDragOver = (e) => {
@@ -91,12 +120,31 @@ export default function FileUpload({ kbId, onUploadComplete, onError }) {
         />
 
         {uploading ? (
-          <>
-            <div style={{ fontSize: 32, marginBottom: 16 }}>
-              <span className="loading-spinner" style={{ width: 40, height: 40, borderWidth: 3 }}></span>
+          <div className="upload-progress-container">
+            <div className="upload-progress-icon">
+              <span className="loading-spinner" style={{ width: 32, height: 32, borderWidth: 3 }}></span>
             </div>
-            <p style={{ fontSize: 16, fontWeight: 500 }}>正在上传处理...</p>
-          </>
+            <div className="upload-progress-info">
+              <p className="upload-progress-title">正在上传文件...</p>
+              <p className="upload-progress-subtitle">
+                预计剩余 {Math.max(1, Math.round((100 - uploadProgress) / 10))} 秒
+              </p>
+            </div>
+            <div className="upload-progress-bar-wrapper">
+              <div className="upload-progress-bar-header">
+                <span className="upload-progress-label">上传进度</span>
+                <span className="upload-progress-percent">{uploadProgress}%</span>
+              </div>
+              <div className="upload-progress-bar">
+                <div 
+                  className="upload-progress-fill" 
+                  style={{ width: `${uploadProgress}%` }}
+                >
+                  <div className="upload-progress-shimmer"></div>
+                </div>
+              </div>
+            </div>
+          </div>
         ) : (
           <>
             <div style={{ fontSize: 48, marginBottom: 16 }}>📄</div>

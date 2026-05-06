@@ -46,28 +46,46 @@ class RAGEngine:
         if not chunks:
             return
 
-        texts = [chunk['content'] for chunk in chunks]
-        embeddings = self.embedder.embed_documents(texts)
+        batch_size = 50
+        total_batches = (len(chunks) + batch_size - 1) // batch_size
 
-        ids = [f"kb{kb_id}_doc{doc_id}_chunk{i}" for i in range(len(chunks))]
-        documents = texts
-        metadatas = [
-            {
-                "kb_id": kb_id,
-                "doc_id": doc_id,
-                "chunk_id": chunk['chunk_id'],
-                "source_file": chunk['source_file'],
-                "char_count": chunk['char_count']
-            }
-            for chunk in chunks
-        ]
+        for batch_idx in range(total_batches):
+            start_idx = batch_idx * batch_size
+            end_idx = min(start_idx + batch_size, len(chunks))
+            batch_chunks = chunks[start_idx:end_idx]
 
-        self.vector_store.add_vectors(ids, embeddings, documents, metadatas)
+            texts = [chunk['content'] for chunk in batch_chunks]
+            embeddings = self.embedder.embed_documents(texts)
 
+            ids = [f"kb{kb_id}_doc{doc_id}_chunk{start_idx + i}" for i in range(len(batch_chunks))]
+            documents = texts
+            metadatas = [
+                {
+                    "kb_id": kb_id,
+                    "doc_id": doc_id,
+                    "chunk_id": batch_chunks[i]['chunk_id'],
+                    "source_file": batch_chunks[i]['source_file'],
+                    "char_count": batch_chunks[i]['char_count']
+                }
+                for i in range(len(batch_chunks))
+            ]
+
+            self.vector_store.add_vectors(ids, embeddings, documents, metadatas)
+            logger.info(f"Indexed batch {batch_idx + 1}/{total_batches} ({len(batch_chunks)} chunks)")
+
+        self._incremental_bm25_index(texts, ids)
+
+    def _sync_bm25_index(self):
         self.vector_store.get_or_create_collection()
-        all_docs = self.vector_store.collection.get(include=["documents"])
+        all_docs = self.vector_store.collection.get(include=["documents", "metadatas"])
         if all_docs and all_docs['documents']:
-            self.hybrid_search.index_documents(all_docs['documents'])
+            vector_ids = all_docs.get('ids', [])
+            self.hybrid_search.index_documents(all_docs['documents'], vector_ids)
+
+    def _incremental_bm25_index(self, texts: List[str], ids: List[str]):
+        if texts and ids:
+            self.hybrid_search.index_documents(texts, ids)
+            logger.info(f"Indexed {len(texts)} documents to BM25")
 
     def search(self, query: str, kb_id: Optional[int] = None,
                top_k: int = None, rerank: bool = True) -> List[Dict[str, Any]]:
@@ -75,6 +93,11 @@ class RAGEngine:
             top_k = Config.TOP_K
 
         try:
+            self.vector_store.get_or_create_collection()
+            if self.vector_store.get_count() == 0:
+                logger.info("Knowledge base is empty, skipping search")
+                return []
+
             query_embedding = self.embedder.embed_query(query)
 
             filter_metadata = {"kb_id": kb_id} if kb_id else None
@@ -113,6 +136,7 @@ class RAGEngine:
         try:
             filter_metadata = {"doc_id": doc_id}
             self.vector_store.delete_by_filter(filter_metadata)
+            self._sync_bm25_index()
             logger.info(f"Deleted vectors for document: {doc_id}")
         except Exception as e:
             logger.error(f"Failed to delete document vectors: {e}")
@@ -121,6 +145,7 @@ class RAGEngine:
         try:
             filter_metadata = {"kb_id": kb_id}
             self.vector_store.delete_by_filter(filter_metadata)
+            self._sync_bm25_index()
             logger.info(f"Deleted vectors for knowledge base: {kb_id}")
         except Exception as e:
             logger.error(f"Failed to delete KB vectors: {e}")

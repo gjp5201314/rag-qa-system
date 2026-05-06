@@ -14,16 +14,19 @@ class Database:
 
     @contextmanager
     def get_connection(self):
-        conn = sqlite3.connect(self.db_path, timeout=30)
+        conn = sqlite3.connect(self.db_path, timeout=30, isolation_level='DEFERRED')
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA busy_timeout=30000")
+        conn.execute("PRAGMA synchronous=NORMAL")
         try:
             yield conn
             conn.commit()
         except Exception as e:
             conn.rollback()
+            import traceback
             logger.error(f"Database error: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise
         finally:
             conn.close()
@@ -225,7 +228,10 @@ class Database:
                 "INSERT INTO chat_messages (session_id, role, content, sources) VALUES (?, ?, ?, ?)",
                 (session_id, role, content, sources)
             )
-            self.update_session_time(session_id)
+            cursor.execute(
+                "UPDATE chat_sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (session_id,)
+            )
             return cursor.lastrowid
 
     def get_chat_messages(self, session_id: int) -> List[Dict[str, Any]]:

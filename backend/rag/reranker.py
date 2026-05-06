@@ -1,8 +1,11 @@
 from typing import List, Dict, Any, Optional
+import os
 import numpy as np
 
 from utils.config import Config
 from utils.logger import logger
+
+os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
 
 class Reranker:
     def __init__(self, model_name: Optional[str] = None):
