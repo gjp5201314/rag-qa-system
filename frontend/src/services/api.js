@@ -5,7 +5,7 @@ const getApiBaseUrl = () => {
   if (envUrl) return envUrl
 
   if (import.meta.env.PROD) {
-    return 'https://rag-api.onrender.com/api'
+    return 'https://rag-api-t46i.onrender.com/api'
   }
 
   return '/api'
