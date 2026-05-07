@@ -10,17 +10,19 @@ from utils.logger import logger
 from utils.config import Config
 
 def main():
+    port = int(os.getenv("PORT", Config.PORT))
+
     logger.info("=" * 50)
     logger.info("RAG 智能问答系统启动中...")
     logger.info(f"Host: {Config.HOST}")
-    logger.info(f"Port: {Config.PORT}")
+    logger.info(f"Port: {port}")
     logger.info(f"Debug: {Config.DEBUG}")
     logger.info("=" * 50)
 
     if Config.DEBUG:
         app.run(
             host=Config.HOST,
-            port=Config.PORT,
+            port=port,
             debug=Config.DEBUG,
             use_reloader=False
         )
@@ -29,7 +31,7 @@ def main():
         serve(
             app,
             host=Config.HOST,
-            port=Config.PORT,
+            port=port,
             threads=4
         )
 

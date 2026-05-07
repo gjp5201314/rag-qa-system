@@ -43,26 +43,7 @@ export default function FileUpload({ kbId, onUploadComplete, onError }) {
         formData.append('file', file)
         formData.append('knowledge_base_id', kbId)
 
-        const response = await new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest()
-          xhr.open('POST', '/api/documents/upload')
-          xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable) {
-              const fileProgress = (e.loaded / e.total) * 100
-              const overallProgress = ((uploadedSize + (e.loaded / files.length)) / totalSize) * 100
-              setUploadProgress(Math.round(overallProgress))
-            }
-          }
-          xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              resolve({ data: JSON.parse(xhr.responseText) })
-            } else {
-              reject(new Error(xhr.statusText))
-            }
-          }
-          xhr.onerror = () => reject(new Error('Network error'))
-          xhr.send(formData)
-        })
+        const response = await documentAPI.upload(formData)
 
         if (response.data.error) {
           onError?.(response.data.error)
