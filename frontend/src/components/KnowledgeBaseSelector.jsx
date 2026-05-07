@@ -35,12 +35,14 @@ export default function KnowledgeBaseSelector() {
         name: newKBName.trim(),
         description: newKBDesc.trim()
       })
-      addKnowledgeBase(response.data)
+      // 重新加载知识库列表
+      await loadKnowledgeBases()
       setShowModal(false)
       setNewKBName('')
       setNewKBDesc('')
     } catch (error) {
       console.error('Create KB failed:', error)
+      alert('创建失败：' + (error.response?.data?.error || error.message))
     }
     setLoading(false)
   }
@@ -51,9 +53,11 @@ export default function KnowledgeBaseSelector() {
 
     try {
       await knowledgeBaseAPI.delete(kbId)
-      removeKnowledgeBase(kbId)
+      // 重新加载知识库列表
+      await loadKnowledgeBases()
     } catch (error) {
       console.error('Delete KB failed:', error)
+      alert('删除失败：' + (error.response?.data?.error || error.message))
     }
   }
 
