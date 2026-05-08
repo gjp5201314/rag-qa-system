@@ -1,5 +1,6 @@
 import axios from 'axios'
 
+// 生产环境 API 配置 - 2026-05-08 更新
 const getApiBaseUrl = () => {
   const envUrl = import.meta.env.VITE_API_URL
   if (envUrl) return envUrl
