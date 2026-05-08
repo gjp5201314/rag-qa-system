@@ -36,6 +36,7 @@ export const documentAPI = {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
   process: (docId) => apiClient.post(`/documents/${docId}/process`),
+  getStatus: (docId) => apiClient.get(`/documents/${docId}/status`),
   getAll: (kbId) => apiClient.get('/documents', { params: { knowledge_base_id: kbId } }),
   getOne: (docId) => apiClient.get(`/documents/${docId}`),
   delete: (docId) => apiClient.delete(`/documents/${docId}`)

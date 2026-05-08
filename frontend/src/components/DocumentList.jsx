@@ -40,25 +40,44 @@ export default function DocumentList({ documents, onDocumentChange }) {
     setProcessing(docId)
     saveProgress(docId, { status: 'processing', progress: 0 })
 
-    let progress = 0
-    const progressInterval = setInterval(() => {
-      progress = Math.min(progress + Math.random() * 12, 90)
-      saveProgress(docId, { status: 'processing', progress: Math.round(progress) })
-    }, 800)
-
     try {
       await documentAPI.process(docId)
-      saveProgress(docId, { status: 'completed', progress: 100 })
-      setTimeout(() => {
-        clearProgress(docId)
-        onDocumentChange?.()
-      }, 500)
+
+      const pollStatus = async () => {
+        try {
+          const statusResponse = await documentAPI.getStatus(docId)
+          const statusData = statusResponse.data
+
+          if (statusData.status === 'completed') {
+            saveProgress(docId, { status: 'completed', progress: 100 })
+            setTimeout(() => {
+              clearProgress(docId)
+              onDocumentChange?.()
+            }, 500)
+            return
+          } else if (statusData.status === 'failed') {
+            saveProgress(docId, { status: 'failed', progress: 0 })
+            onDocumentChange?.()
+            return
+          }
+
+          const currentProgress = processingProgress[docId]?.progress || 0
+          const newProgress = Math.min(currentProgress + Math.random() * 15, 95)
+          saveProgress(docId, { status: 'processing', progress: Math.round(newProgress) })
+
+          setTimeout(pollStatus, 3000)
+        } catch (error) {
+          console.error('Status poll error:', error)
+          setTimeout(pollStatus, 5000)
+        }
+      }
+
+      setTimeout(pollStatus, 2000)
     } catch (error) {
-      console.error('Process failed:', error)
+      console.error('Process start failed:', error)
       saveProgress(docId, { status: 'failed', progress: 0 })
       onDocumentChange?.()
     } finally {
-      clearInterval(progressInterval)
       setProcessing(null)
     }
   }
