@@ -1,3 +1,5 @@
+# _headers - Cache control for Render CDN
+# Last updated: 2026-05-08
 /*
   Cache-Control: no-cache, no-store, must-revalidate
   Pragma: no-cache
