@@ -16,6 +16,10 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
-    base: '/'
+    base: '/',
+    cacheDir: 'node_modules/.vite'
+  },
+  optimizeDeps: {
+    force: true
   }
 })
