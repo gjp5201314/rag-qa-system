@@ -1,21 +1,27 @@
 import os
 import uuid
+import threading
 from pathlib import Path
 from typing import Optional, List, Dict, Any
+from concurrent.futures import ThreadPoolExecutor
 
 from models.database import db
 from rag.engine import RAGEngine
 from utils.config import Config
 from utils.logger import logger
 
+_executor = ThreadPoolExecutor(max_workers=2)
+
 class DocumentService:
     def __init__(self):
         self.rag_engines: Dict[int, RAGEngine] = {}
+        self._engine_lock = threading.Lock()
 
     def get_rag_engine(self, kb_id: int) -> RAGEngine:
-        if kb_id not in self.rag_engines:
-            self.rag_engines[kb_id] = RAGEngine(collection_name=f"kb_{kb_id}")
-        return self.rag_engines[kb_id]
+        with self._engine_lock:
+            if kb_id not in self.rag_engines:
+                self.rag_engines[kb_id] = RAGEngine(collection_name=f"kb_{kb_id}")
+            return self.rag_engines[kb_id]
 
     def upload_document(self, file, kb_id: int) -> Dict[str, Any]:
         try:
@@ -69,8 +75,20 @@ class DocumentService:
 
             db.update_document_status(doc_id, "processing")
 
+            _executor.submit(self._process_document_async, doc_id, kb_id, doc['file_path'])
+
+            logger.info(f"Document processing started in background: {doc_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Document processing error: {e}")
+            db.update_document_status(doc_id, "failed")
+            return False
+
+    def _process_document_async(self, doc_id: int, kb_id: int, file_path: str):
+        try:
             rag_engine = self.get_rag_engine(kb_id)
-            success = rag_engine.load_document(doc['file_path'], kb_id, doc_id)
+            success = rag_engine.load_document(file_path, kb_id, doc_id)
 
             if success:
                 chunks_count = rag_engine.vector_store.get_count()
@@ -80,12 +98,9 @@ class DocumentService:
                 db.update_document_status(doc_id, "failed")
                 logger.error(f"Document processing failed: {doc_id}")
 
-            return success
-
         except Exception as e:
-            logger.error(f"Document processing error: {e}")
+            logger.error(f"Document async processing error: {e}")
             db.update_document_status(doc_id, "failed")
-            return False
 
     def get_documents(self, kb_id: Optional[int] = None) -> List[Dict[str, Any]]:
         return db.get_documents(kb_id)

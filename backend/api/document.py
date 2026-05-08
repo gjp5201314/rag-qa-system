@@ -54,23 +54,47 @@ def process_document(doc_id):
         if not doc:
             return jsonify({"error": "Document not found"}), 404
 
+        if doc['status'] == 'processing':
+            return jsonify({
+                "id": doc_id,
+                "status": "processing",
+                "message": "Document is already being processed"
+            })
+
         success = doc_service.process_document(doc_id, doc['knowledge_base_id'])
 
         if success:
             return jsonify({
                 "id": doc_id,
-                "status": "completed",
-                "message": "Document processed successfully"
+                "status": "processing",
+                "message": "Document processing started"
             })
         else:
             return jsonify({
                 "id": doc_id,
                 "status": "failed",
-                "message": "Document processing failed"
+                "message": "Failed to start document processing"
             })
 
     except Exception as e:
         logger.error(f"Process document error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@document_bp.route('/documents/<int:doc_id>/status', methods=['GET'])
+def get_document_status(doc_id):
+    try:
+        doc = doc_service.get_document(doc_id)
+        if not doc:
+            return jsonify({"error": "Document not found"}), 404
+
+        return jsonify({
+            "id": doc_id,
+            "status": doc['status'],
+            "chunk_count": doc.get('chunk_count', 0),
+            "processed_at": doc.get('processed_at')
+        })
+    except Exception as e:
+        logger.error(f"Get document status error: {e}")
         return jsonify({"error": str(e)}), 500
 
 @document_bp.route('/documents', methods=['GET'])
