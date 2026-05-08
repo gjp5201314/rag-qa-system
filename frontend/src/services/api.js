@@ -1,18 +1,8 @@
 import axios from 'axios'
 
-// 生产环境 API 配置 - 2026-05-08 更新
-const getApiBaseUrl = () => {
-  const envUrl = import.meta.env.VITE_API_URL
-  if (envUrl) return envUrl
-
-  if (import.meta.env.PROD) {
-    return 'https://rag-api-t46i.onrender.com/api'
-  }
-
-  return '/api'
-}
-
-const API_BASE_URL = getApiBaseUrl()
+// 生产环境 API 配置 - 2026-05-08 最终修复版本
+// 直接硬编码正确的 API URL 以避免 CDN 缓存问题
+const API_BASE_URL = 'https://rag-api-t46i.onrender.com/api?v=2026050802'
 
 console.log('API Base URL:', API_BASE_URL)
 
